@@ -1,0 +1,72 @@
+{
+  "environment": {
+    "python": "3.12.14",
+    "pandas": "3.0.1",
+    "numpy": "2.5.4",
+    "scikit_learn": "1.7.2"
+  },
+  "data": {
+    "train_rows": 8693,
+    "test_rows": 4277,
+    "engineered_features": 44,
+    "target_true_rate": 0.5036236051995858
+  },
+  "validation": {
+    "method": "StratifiedGroupKFold grouped by PassengerId prefix",
+    "folds": 5,
+    "seed": 42
+  },
+  "models": {
+    "logistic_regression": {
+      "fold_accuracy": [
+        0.7684148497348262,
+        0.8038768529076397,
+        0.8006853226727584,
+        0.8154027042915932,
+        0.7849162011173184
+      ],
+      "oof_accuracy": 0.7946623720234671,
+      "oof_roc_auc": 0.8858695140084707,
+      "seconds": 0.5517289999988861
+    },
+    "extra_trees": {
+      "fold_accuracy": [
+        0.7919858573954036,
+        0.8255416191562144,
+        0.810394060536836,
+        0.8142269253380364,
+        0.794413407821229
+      ],
+      "oof_accuracy": 0.8073162314505924,
+      "oof_roc_auc": 0.8965056240858775,
+      "seconds": 8.249974099999235
+    },
+    "hist_gradient_boosting": {
+      "fold_accuracy": [
+        0.788450206246317,
+        0.8181299885974914,
+        0.8109651627641348,
+        0.8236331569664903,
+        0.7955307262569833
+      ],
+      "oof_accuracy": 0.8073162314505924,
+      "oof_roc_auc": 0.9009789546065945,
+      "seconds": 2.4267788999932236
+    }
+  },
+  "ensemble": {
+    "weights": {
+      "logistic_regression": 0.2,
+      "extra_trees": 0.30000000000000004,
+      "hist_gradient_boosting": 0.5
+    },
+    "threshold": 0.49000000000000005,
+    "oof_accuracy": 0.811917634878638,
+    "oof_roc_auc": 0.9031886494518309
+  },
+  "submission": {
+    "path": "C:\\Users\\zhong\\Desktop\\SOFTWARE II\\outputs\\submission.csv",
+    "rows": 4277,
+    "true_rate": 0.5272387187280805
+  }
+}

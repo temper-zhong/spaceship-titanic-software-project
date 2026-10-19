@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+.runtime_deps/
+.pytest_cache/
+outputs-quick/
+
+# Kaggle data and generated predictions are kept local.
+raw data/*.csv
+outputs/submission.csv
