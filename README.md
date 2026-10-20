@@ -10,6 +10,8 @@ The goal is to predict whether each passenger was transported to another dimensi
 
 The project covers data auditing, exploratory data analysis (EDA), leakage-aware preprocessing, shared feature engineering, model tuning, grouped cross-validation, four required classifiers, model interpretation, subgroup error analysis, and Kaggle submission generation. The current best local result is **0.8158 grouped out-of-fold accuracy** from an XGBoost/CatBoost probability blend.
 
+For a standalone course-project narrative, see [`PROJECT_DESCRIPTION.md`](PROJECT_DESCRIPTION.md).
+
 > The values reported here are local cross-validation results. A Kaggle leaderboard score is only available after `outputs/submission.csv` is uploaded to Kaggle.
 
 ## Table of contents
@@ -98,6 +100,7 @@ spaceship-titanic-software-project/
 |   |-- MODEL_ANALYSIS.md
 |   `-- figures/                    # ten generated PNG figures
 |-- README.md
+|-- PROJECT_DESCRIPTION.md          # standalone course-project description
 |-- REPORT.md
 |-- TEAM_PROJECT_OVERVIEW.md
 `-- requirements.txt
