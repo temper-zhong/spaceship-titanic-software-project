@@ -1,0 +1,39 @@
+{
+  "selection_metric": "mean grouped 3-fold accuracy at threshold 0.5",
+  "folds": 3,
+  "seed": 42,
+  "best_parameters": {
+    "logistic_regression": {
+      "C": 0.25
+    },
+    "random_forest": {
+      "n_estimators": 400,
+      "max_depth": 16,
+      "min_samples_leaf": 2,
+      "max_features": "sqrt"
+    },
+    "xgboost": {
+      "n_estimators": 350,
+      "max_depth": 5,
+      "learning_rate": 0.035,
+      "min_child_weight": 3,
+      "subsample": 0.85,
+      "colsample_bytree": 0.8,
+      "reg_lambda": 5.0,
+      "reg_alpha": 0.2
+    },
+    "catboost": {
+      "iterations": 400,
+      "depth": 6,
+      "learning_rate": 0.05,
+      "l2_leaf_reg": 7.0,
+      "random_strength": 1.0
+    }
+  },
+  "best_scores": {
+    "logistic_regression": 0.7974228137049444,
+    "random_forest": 0.8050055863958766,
+    "xgboost": 0.8144558576207652,
+    "catboost": 0.8169722313939051
+  }
+}

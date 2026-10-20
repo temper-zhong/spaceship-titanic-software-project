@@ -1,83 +1,94 @@
 # Spaceship Titanic Project Report
 
-## 1. Problem Definition
+## Executive summary
 
-The project addresses Kaggle's Spaceship Titanic binary-classification challenge. Given personal, travel, cabin, and onboard-spending records, the model predicts whether each passenger was transported to an alternate dimension. Kaggle evaluates submissions using classification accuracy:
+This project develops a reproducible binary-classification system for Kaggle's Spaceship Titanic challenge. It validates and audits the official data, engineers 44 shared features, prevents travel-group leakage with `StratifiedGroupKFold`, tunes and evaluates Logistic Regression, Random Forest, XGBoost and CatBoost, blends the two strongest models, and produces a contract-checked Kaggle submission.
 
-\[
-Accuracy = \frac{\text{correct predictions}}{\text{all predictions}}
-\]
+The final grouped five-fold OOF accuracy is **0.8158**, compared with 0.4945 for the fold-fitted Dummy baseline, 0.7945 for Logistic Regression, 0.8026 for Random Forest, 0.8100 for XGBoost and 0.8134 for CatBoost. The blend uses 40% XGBoost and 60% CatBoost probability with a threshold of 0.448.
 
-The final submission must contain `PassengerId` and Boolean `Transported` columns in exactly the same passenger order as the official sample submission.
+## 1. Problem definition
 
-## 2. Data Overview
+The target, `Transported`, records whether a passenger was transported to another dimension. Input variables describe identity, travel group, origin, destination, cryogenic sleep, cabin, age, VIP status and onboard spending. Kaggle uses classification accuracy, and the submission must preserve the official test-set ID order with Boolean predictions.
 
-The training data contains 8,693 passengers and 14 columns, including the target. The test data contains 4,277 passengers and the same 13 predictors. The positive target rate is 50.36%, so the target is almost perfectly balanced.
+The data contains 8,693 labelled rows and 4,277 unlabelled rows. The target is nearly balanced: 50.36% of training passengers are positive. Every predictor except `PassengerId` contains a small number of missing values.
 
-All predictors except `PassengerId` contain missing values, generally between 2.1% and 2.5%. The five monetary variables are `RoomService`, `FoodCourt`, `ShoppingMall`, `Spa`, and `VRDeck`. Important categorical variables include origin planet, destination, cryogenic-sleep status, VIP status, cabin deck, and cabin side.
+## 2. Data audit and EDA
 
-The original Kaggle CSV files are excluded from Git history. Team members must download them from the competition page and place them in `raw data/`.
+The audit checks required columns, file alignment, duplicate rows and IDs, ID/cabin formats, age ranges, spending ranges and the cryosleep-spending domain rule. No structural anomaly was found. Missing rates are between roughly 2.0% and 2.5% and are similar between train and test.
 
-## 3. Data Preparation and Feature Engineering
+The strongest descriptive patterns are:
 
-### 3.1 Passenger and travel-party features
+- Cryosleep: 81.8% transported when true and 32.9% when false.
+- Spending: 78.6% transported among zero-spend passengers and 29.9% among passengers with positive spending.
+- Age: 70.0% for children aged 12 or below and 48.3% for older passengers.
+- Cabin side: 55.5% on side S and 45.1% on side P.
+- Group travel: 56.7% for multi-person groups and 45.2% for solo travellers.
 
-`PassengerId` follows the format `gggg_pp`. The prefix identifies a travel party and the suffix identifies the member within that party. The pipeline extracts both parts and calculates group size and a solo-traveller flag from the passenger manifest.
+These findings motivate the cryosleep, spending, age, cabin and travel-party features. Full tables and plots are in `reports/EDA_REPORT.md` and `reports/figures/`.
 
-### 3.2 Cabin and family features
+## 3. Preprocessing and feature engineering
 
-`Cabin` is split into deck, cabin number, and side. Cabin numbers are also grouped into regions, and exact cabin occupancy is counted. The final word of `Name` is treated as a surname for frequency and group-spending summaries; the raw high-cardinality surname is not passed directly to the models.
+Passenger IDs are split into group and member components. Cabin strings are split into deck, number and side, with an additional cabin-region category and occupancy count. Names contribute surname frequency and surname-level spending context without passing raw names to the estimators.
 
-### 3.3 Age and spending features
+Continuous and indicator features include age, five spending fields, their log transforms, total and log total spending, luxury spending, food/shopping spending, service counts, maximum spending, missingness counts, child/young-adult status, zero-spend status and multiple group aggregates.
 
-The pipeline retains continuous age and adds age bands, child status, and young-adult status. Spending features include total spending, log-transformed spending, luxury spending, food-and-shopping spending, number of active services, and maximum service spending.
+Missing values are filled using domain logic and passenger-manifest context before model-level imputation. Positive spending is treated as evidence that a passenger is awake. Group members can supply missing planet, destination, cryosleep and cabin information. Ages use group and planet medians. Cryosleep-passenger spending is set to zero; residual spending uses planet medians and zero fallback.
 
-### 3.4 Missing-value handling
+No target label enters feature construction. Encoders, imputers and scaling are fitted inside each fold.
 
-The imputation sequence applies domain constraints before generic fallbacks. Positive onboard spending implies that a passenger was not in cryogenic sleep. Missing group-related categorical values are inferred from known members of the same passenger group where possible. Missing ages use party and planet medians. Missing spending for cryosleep passengers is set to zero, while remaining spending values use planet medians and a final zero fallback.
+## 4. Validation and model design
 
-The pipeline preserves missingness signals through missing-field counts and original age/cabin missing indicators. No target label is used during feature construction.
+The PassengerId prefix identifies a travel group. Related passengers often share cabins, destinations, spending patterns and outcomes. Random row-level validation could place group members on both sides of a split, so final evaluation uses five-fold `StratifiedGroupKFold` grouped by this prefix.
 
-## 4. Model and Validation Design
+All four models use the same engineered table and folds:
 
-The project compares three complementary estimators:
+- A most-frequent Dummy classifier provides the no-skill reference.
+- Logistic Regression is the interpretable linear baseline.
+- Random Forest learns bagged nonlinear interactions.
+- XGBoost learns regularized boosted trees over imputed/encoded features.
+- CatBoost uses native categorical inputs and ordered boosting.
 
-- Logistic regression provides a stable linear baseline.
-- Extra Trees captures nonlinear interactions through randomized tree averaging.
-- Histogram gradient boosting incrementally learns nonlinear structure in the engineered table.
+A compact grouped three-fold parameter search selects a fixed configuration for each model. Final five-fold training produces OOF probabilities, fold-averaged test probabilities, importance values and timings. A deterministic OOF-only grid then selects ensemble weights and a decision threshold.
 
-All models are implemented as scikit-learn pipelines. Numeric imputation, scaling where applicable, categorical imputation, and one-hot encoding are fitted independently inside each training fold.
+## 5. Results
 
-Validation uses five-fold `StratifiedGroupKFold`, grouped by passenger-ID prefix. This prevents related passengers from appearing in both a training fold and its validation fold. The stratification component keeps the target rate similar across folds. This design is stricter and more realistic than an ordinary row-level split.
+| Model | Accuracy | ROC-AUC | Precision | Recall | F1 | Fold SD |
+|---|---:|---:|---:|---:|---:|---:|
+| Blended ensemble | **0.8158** | **0.9054** | 0.7893 | **0.8652** | **0.8255** | 0.0150 |
+| CatBoost | 0.8134 | 0.9049 | 0.8072 | 0.8271 | 0.8170 | 0.0185 |
+| XGBoost | 0.8100 | 0.9035 | **0.8108** | 0.8122 | 0.8115 | **0.0139** |
+| Random Forest | 0.8026 | 0.8948 | 0.7979 | 0.8143 | 0.8060 | 0.0164 |
+| Logistic Regression | 0.7945 | 0.8859 | 0.7820 | 0.8209 | 0.8010 | 0.0180 |
+| Dummy Classifier | 0.4945 | 0.5000 | 0.4988 | 0.7910 | 0.6118 | 0.0115 |
 
-Each estimator generates out-of-fold probabilities and fold-averaged test probabilities. A deterministic grid search selects non-negative model weights and a classification threshold using OOF accuracy.
+The nonlinear boosted models consistently improve on the linear baseline. CatBoost is the strongest single model, while the XGBoost/CatBoost blend provides the best accuracy, AUC and F1. The ensemble confusion matrix contains 3,304 true negatives, 3,788 true positives, 1,011 false positives and 590 false negatives.
 
-## 5. Experimental Results
+## 6. Interpretation and subgroup errors
 
-| Model | OOF accuracy | OOF ROC-AUC |
-|---|---:|---:|
-| Logistic regression | 0.7947 | 0.8859 |
-| Extra Trees | 0.8073 | 0.8965 |
-| Histogram gradient boosting | 0.8073 | 0.9010 |
-| **Blended ensemble** | **0.8119** | **0.9032** |
+Spending, cryosleep, planet and cabin features dominate the model rankings. Random Forest places greatest importance on luxury and aggregate spending. XGBoost ranks the no-spend indicator highest. CatBoost gives the largest importance to luxury spending, followed by home planet and cabin attributes.
 
-The selected blend assigns weights of 0.2, 0.3, and 0.5 to logistic regression, Extra Trees, and histogram gradient boosting respectively. Its classification threshold is 0.490, and 52.72% of test passengers are predicted as transported.
+The largest subgroup error rates among groups with at least 50 passengers occur for deck G (28.9%), ages 0-12 (28.3%), destination PSO J318.5-22 (26.5%), passengers spending 1-499 (26.0%) and Earth passengers (25.6%). These errors show that high overall accuracy does not imply uniform performance across travel segments.
 
-The ensemble improves accuracy by approximately 0.46 percentage points over either tree model alone. Its ROC-AUC also increases, indicating stronger probability ranking. These values are local cross-validation results, not Kaggle leaderboard scores.
+## 7. Reproducibility and software quality
 
-## 6. Software Quality and Reproducibility
+The repository provides:
 
-- Random seeds and package versions are recorded.
-- Input files, required columns, official sample order, row count, identifier uniqueness, and Boolean output type are validated.
-- Unit tests cover official data contracts and feature-engineering output contracts.
-- The training entry point supports configurable data/output paths, fold count, and random seed.
-- Quick mode provides a smaller three-fold smoke test.
-- Final metrics are written both as JSON and as a generated Markdown table.
+- one-command orchestration through `python -m src.run_all`;
+- fixed random seeds and recorded environment versions;
+- strict source-data and submission validation;
+- explicit assertions against group leakage;
+- shared features and folds for fair model comparison;
+- parameter, fold-score, OOF, importance and error-analysis artifacts;
+- automated tests for data, features, splits, models and generated outputs.
 
-The committed result used Python 3.12.14, pandas 3.0.1, NumPy 2.5.4, and scikit-learn 1.7.2.
+The recorded run used Python 3.12.14, pandas 3.0.6, NumPy 2.5.4, scikit-learn 1.7.2, XGBoost 3.4.1 and CatBoost 1.2.10.
 
-## 7. Limitations
+## 8. Limitations and future work
 
-The optimized blend threshold may be mildly overfit to the selected folds. Grouped validation may differ from the hidden Kaggle test distribution. Manifest-level counts use both supplied passenger lists, although no test labels are available or used. The model comparison is also limited to scikit-learn estimators.
+The ensemble weights and decision threshold are selected from the same OOF predictions used for reporting and can be mildly optimistic. Manifest aggregates use both unlabelled manifests, which is valid for this competition but differs from single-passenger production inference. Local grouped CV can also differ from Kaggle's hidden distribution.
 
-Useful follow-up work includes repeated grouped cross-validation, CatBoost, multi-seed ensembles, feature ablation, probability calibration, and recording public/private Kaggle leaderboard scores with matching commit hashes.
+Future work should evaluate repeated grouped CV across several seeds, perform feature ablations, investigate probability calibration, test group-level consistency rules and record Kaggle public/private scores with the matching commit hash.
+
+## 9. Conclusion
+
+The completed system satisfies the requested workflow from data audit through error analysis. It demonstrates that domain-aware shared features, leakage-resistant validation and complementary boosted models provide a reliable, reproducible solution. The generated submission is ready for Kaggle upload, while the reports and structured outputs support team review and extension.

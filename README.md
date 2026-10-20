@@ -1,196 +1,260 @@
-# Spaceship Titanic Prediction
+# Spaceship Titanic: Reproducible Classification Project
 
-Predicting whether a passenger was transported to an alternate dimension, in Python. Kaggle metric: **classification accuracy**.
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB)](https://www.python.org/)
+[![Kaggle](https://img.shields.io/badge/Kaggle-Spaceship%20Titanic-20BEFF)](https://www.kaggle.com/competitions/spaceship-titanic)
+[![Metric](https://img.shields.io/badge/OOF%20accuracy-81.58%25-2E8B57)](#results)
 
-This repository contains a complete, reproducible machine-learning pipeline for the [Kaggle Spaceship Titanic competition](https://www.kaggle.com/competitions/spaceship-titanic). It covers data validation, domain-aware missing-value handling, feature engineering, leakage-resistant cross-validation, model comparison, probability blending, automated tests, and submission generation.
+This repository contains an end-to-end, reproducible solution for Kaggle's
+[Spaceship Titanic competition](https://www.kaggle.com/competitions/spaceship-titanic).
+The goal is to predict whether each passenger was transported to another dimension after the ship collided with a spacetime anomaly.
 
----
+The project covers data auditing, exploratory data analysis (EDA), leakage-aware preprocessing, shared feature engineering, model tuning, grouped cross-validation, four required classifiers, model interpretation, subgroup error analysis, and Kaggle submission generation. The current best local result is **0.8158 grouped out-of-fold accuracy** from an XGBoost/CatBoost probability blend.
 
-## 1. The Task
+> The values reported here are local cross-validation results. A Kaggle leaderboard score is only available after `outputs/submission.csv` is uploaded to Kaggle.
 
-The Spaceship Titanic collided with a spacetime anomaly while carrying passengers to distant planets. Given records recovered from the ship's computer system, the task is to predict the binary target `Transported` for every passenger in the test set.
+## Table of contents
+
+1. [Problem and data](#problem-and-data)
+2. [Repository structure](#repository-structure)
+3. [Team deliverables](#team-deliverables)
+4. [Methodology](#methodology)
+5. [Results](#results)
+6. [Exploratory findings](#exploratory-findings)
+7. [Model interpretation and errors](#model-interpretation-and-errors)
+8. [Reproduction](#reproduction)
+9. [Generated artifacts](#generated-artifacts)
+10. [Software quality and limitations](#software-quality-and-limitations)
+
+## Problem and data
+
+The task is binary classification. For each passenger in `test.csv`, the model must predict a Boolean value for `Transported`. Kaggle evaluates submissions using classification accuracy.
 
 | Item | Value |
 |---|---:|
-| Training set | 8,693 labelled passengers |
-| Test set | 4,277 unlabelled passengers |
+| Training rows | 8,693 |
+| Test rows | 4,277 |
 | Raw predictors | 13 |
 | Engineered model features | 44 |
-| Metric | Accuracy |
-| Training positive rate | 50.36% |
+| Positive target rate | 50.36% |
 | Validation | 5-fold `StratifiedGroupKFold` |
+| Group key | `PassengerId` prefix |
+| Competition metric | Accuracy |
 
-The target is nearly balanced, so accuracy is informative without class reweighting. The important modelling challenges are missing data, related passengers, mixed numeric/categorical inputs, and strong interactions between cryogenic sleep and onboard spending.
+### Raw feature dictionary
 
-### Raw features
+| Feature | Type | Description | Train missing rate |
+|---|---|---|---:|
+| `PassengerId` | identifier | Unique ID in `gggg_pp` form; `gggg` identifies a travel group | 0.00% |
+| `HomePlanet` | categorical | Planet of departure | 2.31% |
+| `CryoSleep` | Boolean | Whether the passenger entered suspended animation | 2.50% |
+| `Cabin` | structured text | Cabin in `deck/number/side` form | 2.29% |
+| `Destination` | categorical | Destination planet | 2.09% |
+| `Age` | numeric | Passenger age | 2.06% |
+| `VIP` | Boolean | Whether VIP service was purchased | 2.34% |
+| `RoomService` | numeric | Room-service spending | 2.08% |
+| `FoodCourt` | numeric | Food-court spending | 2.11% |
+| `ShoppingMall` | numeric | Shopping-mall spending | 2.39% |
+| `Spa` | numeric | Spa spending | 2.11% |
+| `VRDeck` | numeric | VR-deck spending | 2.16% |
+| `Name` | text | Passenger name | 2.30% |
+| `Transported` | target | Whether the passenger was transported | 0.00% |
 
-Every predictor except `PassengerId` has missing values in the training set.
+The audit found no duplicate rows, duplicate IDs, invalid passenger-ID formats, invalid cabin formats, negative ages, ages above 100, negative spending values, or cryosleep passengers with positive spending.
 
-| Feature | Meaning | Training missing rate |
-|---|---|---:|
-| `PassengerId` | Passenger identifier in `gggg_pp` format | 0.00% |
-| `HomePlanet` | Planet of departure | 2.31% |
-| `CryoSleep` | Whether the passenger entered suspended animation | 2.50% |
-| `Cabin` | Cabin in `deck/number/side` format | 2.29% |
-| `Destination` | Destination planet | 2.09% |
-| `Age` | Passenger age | 2.06% |
-| `VIP` | Whether VIP service was purchased | 2.34% |
-| `RoomService` | Room-service charges | 2.08% |
-| `FoodCourt` | Food-court charges | 2.11% |
-| `ShoppingMall` | Shopping-mall charges | 2.39% |
-| `Spa` | Spa charges | 2.11% |
-| `VRDeck` | VR-deck charges | 2.16% |
-| `Name` | Passenger name | 2.30% |
+The Kaggle source CSVs are intentionally excluded from Git history. Team members must accept the competition rules, download the data, and place the files in `raw data/`.
 
-**The competition data is not stored in this repository.** Download it from Kaggle as described in [Reproducing the results](#5-reproducing-the-results).
-
----
-
-## 2. Repository Structure
+## Repository structure
 
 ```text
 spaceship-titanic-software-project/
-├── raw data/
-│   └── README.md              data download and placement instructions
-├── src/
-│   ├── __init__.py
-│   └── train.py               validation, features, models, blending, outputs
-├── tests/
-│   └── test_project.py        source-data and feature-contract tests
-├── outputs/
-│   ├── metrics.json           machine-readable final experiment results
-│   └── model_summary.md       compact model comparison table
-├── README.md                  detailed reproduction guide
-├── REPORT.md                  methods, findings, and limitations
-├── TEAM_PROJECT_OVERVIEW.md   short hand-off document for team members
-└── requirements.txt           Python dependencies
+|-- raw data/
+|   |-- README.md
+|   |-- train.csv                  # local only; ignored by Git
+|   |-- test.csv                   # local only; ignored by Git
+|   `-- sample_submission.csv      # local only; ignored by Git
+|-- src/
+|   |-- pipeline.py                # shared data, features, folds, preprocessing, models
+|   |-- eda.py                     # data dictionary, audit, EDA figures and report
+|   |-- tune.py                    # grouped-CV parameter search for four models
+|   |-- train.py                   # final 5-fold OOF training, blend and submission
+|   |-- analyze.py                 # comparison, importance and subgroup errors
+|   `-- run_all.py                 # one-command end-to-end workflow
+|-- tests/
+|   `-- test_project.py            # data, feature, split, model and output contracts
+|-- outputs/
+|   |-- best_params.json
+|   |-- data_quality.csv
+|   |-- anomaly_checks.csv
+|   |-- tuning_results.csv
+|   |-- model_comparison.csv
+|   |-- fold_scores.csv
+|   |-- feature_importance.csv
+|   |-- error_analysis.csv
+|   |-- confusion_matrix.csv
+|   |-- metrics.json
+|   `-- model_summary.md
+|-- reports/
+|   |-- EDA_REPORT.md
+|   |-- MODEL_ANALYSIS.md
+|   `-- figures/                    # ten generated PNG figures
+|-- README.md
+|-- REPORT.md
+|-- TEAM_PROJECT_OVERVIEW.md
+`-- requirements.txt
 ```
 
-The generated `outputs/submission.csv` and the three Kaggle CSV files are ignored by Git. This keeps competition data and generated predictions out of repository history while preserving all code needed to rebuild them.
+`outputs/submission.csv`, OOF row-level predictions, fold assignments, and the raw Kaggle files are generated locally and ignored by Git. Aggregate, non-sensitive experiment tables and figures are committed so reviewers can inspect the results without retraining.
 
----
+## Team deliverables
 
-## 3. Pipeline Design
+The implementation matches the requested M1-M6 work allocation. Presentation slides are intentionally out of scope for the current version.
 
-The entire pipeline is implemented in `src/train.py`. One command performs the following steps:
+| Member | Responsibility | Completed deliverables |
+|---|---|---|
+| M1 | Problem understanding, data audit and EDA | Data dictionary, missing-value profile, anomaly checks, ten EDA/analysis figures, `reports/EDA_REPORT.md` |
+| M2 | Preprocessing, shared features, fixed splits and baselines | Shared feature pipeline, grouped fold assignments, fitted Dummy classifier and Logistic Regression baselines |
+| M3 | Random Forest | Training, compact parameter search, OOF/test prediction, feature importance, metrics |
+| M4 | XGBoost | Training, compact parameter search, OOF/test prediction, feature importance, metrics |
+| M5 | CatBoost | Native categorical model, compact parameter search, OOF/test prediction, feature importance, metrics |
+| M6 | Comparison, interpretation and error analysis | Unified results, confusion matrix, subgroup errors, findings, conclusion, reproducible integration |
 
-1. Validate the three source files and their required columns.
-2. Build manifest-level and passenger-level features without using target labels.
-3. Construct five grouped, stratified validation folds.
-4. Fit preprocessing separately inside every training fold.
-5. Train three complementary classifiers.
-6. Collect out-of-fold and test-set probabilities.
-7. Select ensemble weights and a classification threshold from OOF predictions.
-8. Validate the final submission against `sample_submission.csv`.
-9. Write the submission, metrics, and Markdown results summary.
+All models use the same feature definitions and the same five grouped validation folds for a fair final comparison.
 
-### 3.1 Feature engineering
+## Methodology
 
-The 44 model features include:
+### Data validation
 
-| Feature family | Examples |
+Before modelling, the pipeline checks:
+
+- required columns and official file structure;
+- unique, non-null passenger IDs across train and test;
+- exact alignment of test IDs with `sample_submission.csv`;
+- populated target labels;
+- official output column order and Boolean prediction values.
+
+### Feature engineering
+
+The 44 engineered inputs are shared by all models. Major feature families include:
+
+| Family | Examples |
 |---|---|
-| Travel party | group ID components, member number, group size, solo-travel flag |
-| Cabin | deck, cabin number, side, cabin region, cabin occupancy |
-| Family | surname frequency and surname-level mean spending |
-| Demographics | imputed age, age band, child flag, young-adult flag |
-| Spending | five original services, total spend, log spend, luxury spend, active-service count, maximum service spend |
+| Passenger group | group-member number, group size, solo flag, group mean age/spend, group cryosleep rate |
+| Cabin | deck, number, side, cabin region, cabin occupancy |
+| Family context | surname frequency and surname-level mean spending |
+| Demographics | age, age band, child flag, young-adult flag |
+| Spending | original services, log services, total spend, log total, luxury spend, active-service count, maximum spend |
 | Missingness | total missing count, missing service count, original age/cabin missing flags |
-| Group context | group mean age, mean spend, total spend, and cryosleep rate |
 
-High-cardinality raw identifiers, full names, and raw surnames are not fed directly to the models. They are converted into compact numeric or categorical summaries instead.
+Raw passenger IDs, full names, and raw surnames are not supplied directly to the estimators.
 
-### 3.2 Missing data and domain constraints
+### Missing-value handling
 
-Imputation uses information available in the passenger manifest, never the target label.
+Feature construction uses manifest information and domain constraints without target labels:
 
-- A passenger with positive onboard spending cannot be treated as being in cryogenic sleep.
-- Missing planet, destination, cryosleep, deck, and side values are first inferred from known members of the same travel group where possible.
-- Cabin deck can provide a fallback signal for `HomePlanet`, and `HomePlanet` provides a fallback deck when the cabin is absent.
-- Missing ages use group and planet medians.
-- Missing spending for cryosleep passengers is set to zero; remaining spending values use planet-level medians and then zero where necessary.
-- Missingness counts and original missing flags remain available to the model.
+- Positive onboard spending implies the passenger was awake.
+- Known members of a travel group help infer missing planet, destination, cryosleep and cabin values.
+- Cabin deck supplies a fallback planet signal where appropriate.
+- Missing ages use travel-group and planet medians.
+- Missing spending for cryosleep passengers is set to zero; remaining values use planet medians and a zero fallback.
+- Residual categorical and numeric gaps are handled inside model pipelines with `SimpleImputer`.
 
-Train and test rows are combined only for **unlabelled manifest statistics**, such as travel-party size. No test labels exist, and no target-derived values are used in feature engineering.
+Train and test rows are combined only for unlabelled manifest statistics such as group size and cabin occupancy. No test labels exist, and no target-derived feature is used.
 
-### 3.3 Validation discipline
+### Leakage-resistant validation
 
-The passenger ID prefix identifies a travel group. Related passengers may share destination, cabin, spending behaviour, and outcome. A random row-level split could put members of one group into both the training and validation sets, producing an overly optimistic estimate.
+Passengers sharing the same ID prefix are often related or travelling together. They can share cabins, destinations and outcomes. An ordinary random split can therefore place related passengers in both training and validation data and produce an optimistic score.
 
-This project therefore uses five-fold `StratifiedGroupKFold`:
+The project uses five-fold `StratifiedGroupKFold`:
 
-- `Stratified` keeps the target balance similar across folds.
-- `Group` keeps every passenger group entirely within one fold.
-- Encoders and imputers are fitted inside each fold through scikit-learn pipelines.
-- The random seed is fixed at `42` by default.
+- `Group` keeps every travel group in one fold only.
+- `Stratified` keeps target rates reasonably balanced.
+- Preprocessing is fitted separately inside each training fold.
+- Seed `42` makes the folds and estimators reproducible.
+- The committed fold assignment makes the final comparison auditable.
 
-This validation scheme is stricter than ordinary stratified cross-validation and better measures performance on unseen travel parties.
+### Model lineup and tuning
 
-### 3.4 Models and ensemble
-
-| Model | Role in the ensemble |
+| Model | Purpose |
 |---|---|
-| Logistic regression | Stable linear baseline after scaling and one-hot encoding |
-| Extra Trees | Nonlinear interactions and robust tree averaging |
-| Histogram gradient boosting | Sequential nonlinear learning for structured tabular data |
+| Dummy Classifier | Most-frequent-class reference used to verify that learned models add value |
+| Logistic Regression | Interpretable linear baseline after scaling and one-hot encoding |
+| Random Forest | Bagged nonlinear trees and robust interaction learning |
+| XGBoost | Regularized gradient-boosted trees for sparse encoded features |
+| CatBoost | Gradient boosting with native handling of categorical inputs |
 
-Each model generates OOF probabilities and fold-averaged test probabilities. The script searches a small deterministic grid of non-negative ensemble weights and thresholds using OOF accuracy. The selected blend gives the strongest local validation result while remaining easy to reproduce.
+`src/tune.py` performs a compact, deterministic grouped three-fold search for each model. The selected configurations are stored in `outputs/best_params.json`. The final evaluation then uses fresh five-fold OOF predictions so all models are scored on identical folds.
 
----
+The ensemble search evaluates non-negative weights on a fixed simplex and thresholds from 0.44 to 0.56. The selected blend uses only OOF predictions; test predictions do not influence model selection.
 
-## 4. Results
+## Results
 
-The committed results were produced with five grouped folds and seed `42`.
+Final grouped five-fold OOF results with seed `42`:
 
-| Model | OOF accuracy | OOF ROC-AUC |
-|---|---:|---:|
-| Logistic regression | 0.7947 | 0.8859 |
-| Extra Trees | 0.8073 | 0.8965 |
-| Histogram gradient boosting | 0.8073 | 0.9010 |
-| **Blended ensemble** | **0.8119** | **0.9032** |
+| Model | Accuracy | ROC-AUC | Precision | Recall | F1 | Fold accuracy SD |
+|---|---:|---:|---:|---:|---:|---:|
+| **Blended ensemble** | **0.8158** | **0.9054** | 0.7893 | **0.8652** | **0.8255** | 0.0150 |
+| CatBoost | 0.8134 | 0.9049 | 0.8072 | 0.8271 | 0.8170 | 0.0185 |
+| XGBoost | 0.8100 | 0.9035 | **0.8108** | 0.8122 | 0.8115 | **0.0139** |
+| Random Forest | 0.8026 | 0.8948 | 0.7979 | 0.8143 | 0.8060 | 0.0164 |
+| Logistic Regression | 0.7945 | 0.8859 | 0.7820 | 0.8209 | 0.8010 | 0.0180 |
+| Dummy Classifier | 0.4945 | 0.5000 | 0.4988 | 0.7910 | 0.6118 | 0.0115 |
 
-Selected ensemble configuration:
+Selected ensemble:
 
 | Setting | Value |
 |---|---:|
-| Logistic regression weight | 0.2 |
-| Extra Trees weight | 0.3 |
-| Histogram gradient boosting weight | 0.5 |
-| Classification threshold | 0.490 |
-| Test predictions labelled `True` | 52.72% |
+| Logistic Regression weight | 0.0 |
+| Random Forest weight | 0.0 |
+| XGBoost weight | 0.4 |
+| CatBoost weight | 0.6 |
+| Classification threshold | 0.448 |
 
-The ensemble improves OOF accuracy by about 0.46 percentage points over either tree model alone. The exact fold scores, execution times, environment versions, weights, and threshold are stored in `outputs/metrics.json` and summarized in `outputs/model_summary.md`.
+The boosted models outperform the linear and bagged-tree baselines. The blend adds 0.24 percentage points over CatBoost and 0.59 points over XGBoost. Its confusion matrix contains 3,304 true negatives, 3,788 true positives, 1,011 false positives and 590 false negatives.
 
-These are **local cross-validation results**, not a Kaggle public-leaderboard score. A leaderboard score is only available after uploading the generated submission.
+![Grouped OOF model comparison](reports/figures/model_comparison.png)
 
----
+## Exploratory findings
 
-## 5. Reproducing the Results
+The complete EDA is in [`reports/EDA_REPORT.md`](reports/EDA_REPORT.md). Main findings include:
 
-### Requirements
+1. Cryosleep has the largest raw separation: 81.8% transported for sleeping passengers versus 32.9% for awake passengers.
+2. Zero-spend passengers have a 78.6% transport rate, compared with 29.9% among passengers with positive recorded spending.
+3. Children aged 12 or below have a 70.0% transport rate, compared with 48.3% among older passengers.
+4. Cabin side S has a 55.5% rate versus 45.1% for side P.
+5. Multi-person groups have a 56.7% rate versus 45.2% for solo passengers.
+6. Deck-level transport rates vary substantially, especially decks B/C versus E/T.
 
-- Python 3.11 or 3.12
-- Approximately 1 GB of free memory
-- The Kaggle competition CSV files
+![Selected categorical transport rates](reports/figures/categorical_transport_rates.png)
 
-| Package | Purpose |
+## Model interpretation and errors
+
+The complete analysis is in [`reports/MODEL_ANALYSIS.md`](reports/MODEL_ANALYSIS.md).
+
+Top-ranked features differ by algorithm:
+
+| Model | Leading signals |
 |---|---|
-| `pandas` | data loading and feature construction |
-| `numpy` | numerical operations and probability blending |
-| `scikit-learn` | preprocessing, grouped validation, models, and metrics |
+| Logistic Regression | cabin deck C, luxury spending, Europa origin, Spa, VRDeck |
+| Random Forest | luxury spending, food/shopping spending, total and log total spend |
+| XGBoost | no-spend flag, Earth origin, luxury spending, active-service count |
+| CatBoost | luxury spending, home planet, cabin deck/side/number |
 
-Versions are constrained in `requirements.txt`; the recorded final run used Python 3.12.14, pandas 3.0.1, NumPy 2.5.4, and scikit-learn 1.7.2.
+Feature importance confirms the EDA themes but does not imply causality. The highest-error groups with at least 50 rows include deck G (28.9%), ages 0-12 (28.3%), destination PSO J318.5-22 (26.5%), low positive spending (26.0%), and Earth passengers (25.6%). These groups are useful targets for further feature development and calibration checks.
 
-### Step 1: Clone the repository
+![Subgroup error rates](reports/figures/subgroup_error_rates.png)
+
+## Reproduction
+
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/temper-zhong/spaceship-titanic-software-project.git
 cd spaceship-titanic-software-project
 ```
 
-The repository is currently private, so the cloning account must be added as a collaborator.
+The repository may be private. Ask the owner to add your GitHub account as a collaborator before cloning.
 
-### Step 2: Create the environment
+### 2. Create an isolated environment
 
 Windows PowerShell:
 
@@ -210,111 +274,85 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-### Step 3: Get the data
+### 3. Download the Kaggle data
 
-Download the competition files from the [Kaggle data page](https://www.kaggle.com/competitions/spaceship-titanic/data) and place them in `raw data/` with these exact names:
+Download `train.csv`, `test.csv`, and `sample_submission.csv` from the
+[competition data page](https://www.kaggle.com/competitions/spaceship-titanic/data) and place them in `raw data/` with exactly those names.
 
-```text
-raw data/
-├── train.csv
-├── test.csv
-└── sample_submission.csv
-```
-
-Expected shapes:
-
-| File | Expected shape |
-|---|---:|
-| `train.csv` | 8,693 × 14 |
-| `test.csv` | 4,277 × 13 |
-| `sample_submission.csv` | 4,277 × 2 |
-
-### Step 4: Run the tests
+### 4. Run the tests
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-The tests verify official file shapes, submission-column order, passenger-ID alignment, feature row preservation, feature-column order, and the absence of missing numeric model features.
-
-### Step 5: Run a quick smoke test
+### 5. Run a fast smoke test
 
 ```bash
-python -m src.train --quick --output-dir outputs-quick
+python -m src.run_all --quick --output-dir outputs-quick --report-dir reports-quick
 ```
 
-Quick mode uses three folds and smaller estimators. It is intended to verify installation and data placement, not to reproduce the committed final score.
+Quick mode uses reduced model sizes, smaller tuning grids and three final folds. It verifies installation and data placement but does not reproduce the committed scores.
 
-### Step 6: Run the final pipeline
+### 6. Reproduce the complete project
 
 ```bash
-python -m src.train
+python -m src.run_all
 ```
 
-The command trains all three models across five grouped folds, creates the ensemble, and writes:
+The command runs EDA, tuning, five-fold training, blending, interpretation, error analysis and submission generation in the correct order. A typical full run takes several minutes on a laptop; CatBoost is the slowest stage.
 
-| Output | Description |
-|---|---|
-| `outputs/submission.csv` | Kaggle-ready Boolean predictions |
-| `outputs/metrics.json` | full run metadata and evaluation results |
-| `outputs/model_summary.md` | human-readable model comparison |
+Individual stages can also be executed separately:
 
-The final submission contract is checked automatically:
+```bash
+python -m src.eda
+python -m src.tune
+python -m src.train --params-file outputs/best_params.json
+python -m src.analyze
+```
 
-- exactly 4,277 data rows;
-- columns are exactly `PassengerId,Transported`;
-- passenger IDs and row order match `sample_submission.csv`;
-- IDs are unique;
-- predictions are Boolean values.
+### 7. Submit to Kaggle
 
-### Command-line options
+Upload `outputs/submission.csv` on the competition submission page. The file contains exactly 4,277 rows and the required columns:
 
 ```text
-python -m src.train [--data-dir PATH] [--output-dir PATH]
-                    [--folds N] [--seed N] [--quick]
+PassengerId,Transported
+0013_01,False
+0018_01,False
+...
 ```
 
-| Option | Default | Description |
-|---|---:|---|
-| `--data-dir` | `raw data` | directory containing the three Kaggle CSV files |
-| `--output-dir` | `outputs` | directory for predictions and metrics |
-| `--folds` | `5` | number of grouped validation folds |
-| `--seed` | `42` | random seed used by splitting and models |
-| `--quick` | off | use three folds and smaller estimators |
+## Generated artifacts
 
-Changing the number of folds, seed, package versions, or source data can change the reported result. Keep the defaults when comparing against the committed metrics.
+| Artifact | Purpose |
+|---|---|
+| `outputs/data_quality.csv` | Field types, cardinality, missingness and numeric outlier counts |
+| `outputs/anomaly_checks.csv` | Explicit integrity and domain-rule checks |
+| `outputs/tuning_results.csv` | Fold-level scores for every tuning candidate |
+| `outputs/best_params.json` | Selected parameter set for each model |
+| `outputs/model_comparison.csv` | Unified accuracy, AUC, precision, recall, F1 and calibration metrics |
+| `outputs/fold_scores.csv` | Fold-by-fold model scores and timings |
+| `outputs/feature_importance.csv` | Per-fold model-specific importance values |
+| `outputs/error_analysis.csv` | Segment-level accuracy, FP/FN counts and probability summaries |
+| `outputs/confusion_matrix.csv` | Ensemble OOF confusion-matrix cells |
+| `outputs/metrics.json` | Environment, data, validation, model, ensemble and submission metadata |
+| `outputs/submission.csv` | Kaggle-ready test predictions, generated locally |
+| `reports/EDA_REPORT.md` | Reproducible EDA narrative and findings |
+| `reports/MODEL_ANALYSIS.md` | Comparison, interpretation, errors and conclusions |
 
----
+## Software quality and limitations
 
-## 6. Collaboration Workflow
+Quality controls include fixed random seeds, strict input/output validation, grouped split assertions, preprocessing inside folds, generated fold assignments, recorded package versions, unit tests, and a single orchestration command.
 
-For team development:
+Known limitations:
 
-```bash
-git checkout -b feature/short-description
-# make and test changes
-git add .
-git commit -m "Describe the change"
-git push -u origin feature/short-description
-```
+- Ensemble weights and threshold are selected on one set of OOF predictions and may be mildly optimistic.
+- Grouped CV is deliberately strict but may not perfectly match the hidden Kaggle distribution.
+- Manifest-level unsupervised aggregates use both supplied passenger lists. No target values are used, but a production deployment with one passenger at a time would need a different design.
+- Feature importance is algorithm-specific and descriptive, not causal.
+- The final Kaggle public/private score is not known until the submission is uploaded.
 
-Open a pull request into `main` and include:
+Useful next steps include repeated grouped CV across multiple seeds, calibration analysis, ablation studies, group-consistency post-processing, and recording Kaggle scores against an immutable Git commit.
 
-1. the motivation for the change;
-2. the validation command used;
-3. before/after OOF accuracy if modelling logic changed;
-4. confirmation that Kaggle data and generated submissions were not committed.
+## Acknowledgements
 
-Do not compare experiments created with different fold settings as though they used the same validation contract.
-
----
-
-## 7. Limitations and Next Steps
-
-- OOF threshold selection can slightly overfit the current folds.
-- Local grouped CV is intentionally strict and may not match the Kaggle leaderboard distribution.
-- Manifest-level statistics use the supplied train and test passenger lists, although they never use test labels.
-- The current model family is limited to scikit-learn; CatBoost and repeated-seed ensembles are promising extensions.
-- A public or private leaderboard score has not yet been recorded in the repository.
-
-Recommended next experiments are repeated grouped CV across several seeds, CatBoost with native categorical handling, probability calibration, feature ablation, and a documented Kaggle submission log.
+Dataset and competition: Kaggle, Addison Howard, Ashley Chow, and Ryan Holbrook. This repository is an educational software and machine-learning course project.

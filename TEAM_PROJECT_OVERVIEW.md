@@ -1,63 +1,64 @@
 # Spaceship Titanic Team Project Overview
 
-## Project Summary
+## Project status
 
-This project solves Kaggle's **Spaceship Titanic** binary-classification challenge. Using passenger demographics, travel information, cabin details, cryogenic-sleep status, and onboard spending, the model predicts whether each passenger was transported to an alternate dimension. Kaggle scores submissions by classification accuracy.
+The modelling project is complete and reproducible. Presentation slides are intentionally postponed. The repository now contains the shared preprocessing code, all four required models, grouped cross-validation, parameter search, model comparison, interpretation, subgroup error analysis, reports, charts, tests and a Kaggle-ready submission generator.
 
-## Current Status
+## Work allocation and deliverables
 
-- Data validation and missing-value analysis are complete.
-- Feature engineering produces 44 model inputs.
-- Three classifiers have been evaluated with grouped five-fold cross-validation.
-- An OOF-weighted ensemble has been selected.
-- Automated tests and submission-contract checks pass.
-- A 4,277-row Kaggle submission can be reproduced from one command.
+| Member | Responsibility | Main files and outputs |
+|---|---|---|
+| M1 | Problem understanding, data checks and EDA | `src/eda.py`, `reports/EDA_REPORT.md`, `outputs/data_quality.csv`, `outputs/anomaly_checks.csv`, EDA figures |
+| M2 | Preprocessing, features, fixed split/CV and baseline | `src/pipeline.py`, Dummy and Logistic Regression baselines in `src/train.py`, grouped fold assignments and preprocessing tests |
+| M3 | Random Forest | Tuning/training code, OOF metrics, fold scores and importance records |
+| M4 | XGBoost | Tuning/training code, OOF metrics, fold scores and importance records |
+| M5 | CatBoost | Native categorical tuning/training, OOF metrics, fold scores and importance records |
+| M6 | Comparison, interpretation and error analysis | `src/analyze.py`, `reports/MODEL_ANALYSIS.md`, comparison/confusion/error tables and figures |
 
-## Technical Approach
+Every final model uses the same 44 features and the same five grouped folds. This makes the comparison fair and prevents travel-group leakage.
 
-The passenger ID is split into travel-party and member components. Cabin values are split into deck, number, and side. Additional features describe group size, cabin occupancy, surname frequency, age bands, total and log spending, active services, missingness, and group-level passenger behaviour.
+## Final local results
 
-Missing values are handled using manifest information and domain rules before median/mode fallbacks. In particular, positive spending is inconsistent with cryogenic sleep, and known members of a travel party can help fill missing travel or cabin fields.
-
-Validation uses `StratifiedGroupKFold`, with passenger groups as the grouping key. This prevents relatives or travelling companions from appearing in both training and validation for the same fold. Preprocessing is fitted inside each fold.
-
-The final ensemble combines logistic regression, Extra Trees, and histogram gradient boosting.
-
-## Results
-
-| Model | OOF accuracy | OOF ROC-AUC |
+| Model | Grouped OOF accuracy | ROC-AUC |
 |---|---:|---:|
-| Logistic regression | 0.7947 | 0.8859 |
-| Extra Trees | 0.8073 | 0.8965 |
-| Histogram gradient boosting | 0.8073 | 0.9010 |
-| **Blended ensemble** | **0.8119** | **0.9032** |
+| Dummy Classifier | 0.4945 | 0.5000 |
+| Logistic Regression | 0.7945 | 0.8859 |
+| Random Forest | 0.8026 | 0.8948 |
+| XGBoost | 0.8100 | 0.9035 |
+| CatBoost | 0.8134 | 0.9049 |
+| **XGBoost/CatBoost blend** | **0.8158** | **0.9054** |
 
-The selected model weights are 0.2, 0.3, and 0.5 respectively, with a classification threshold of 0.490. These are local validation results; a Kaggle leaderboard score has not yet been recorded.
+The final blend uses 40% XGBoost and 60% CatBoost probabilities with a threshold of 0.448. These are local cross-validation values, not Kaggle leaderboard scores.
 
-## Repository Contents
+## How a team member can reproduce the project
 
-```text
-├── src/train.py              complete training and prediction pipeline
-├── tests/test_project.py     data and feature-contract tests
-├── raw data/README.md        Kaggle data instructions
-├── outputs/metrics.json      full experiment metrics
-├── outputs/model_summary.md  generated comparison table
-├── README.md                 detailed reproduction guide
-├── REPORT.md                 full project report
-└── requirements.txt          Python dependencies
+```bash
+git clone https://github.com/temper-zhong/spaceship-titanic-software-project.git
+cd spaceship-titanic-software-project
+python -m venv .venv
 ```
 
-## Reproduction
+Activate the environment, then run:
 
-1. Clone the private repository.
-2. Create and activate a Python 3.11/3.12 virtual environment.
-3. Install dependencies with `python -m pip install -r requirements.txt`.
-4. Download the three Spaceship Titanic CSV files from Kaggle into `raw data/`.
-5. Run `python -m unittest discover -s tests -v`.
-6. Run `python -m src.train`.
+```bash
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -v
+python -m src.run_all
+```
 
-The final command writes `outputs/submission.csv`, `outputs/metrics.json`, and `outputs/model_summary.md`. Quick installation checks can use `python -m src.train --quick --output-dir outputs-quick`.
+Before the last command, download the three Kaggle CSV files into `raw data/`. A faster installation check is available with:
 
-## Suggested Team Workflow
+```bash
+python -m src.run_all --quick --output-dir outputs-quick --report-dir reports-quick
+```
 
-Create a short-lived feature branch, run the tests, commit only code and documentation, and open a pull request into `main`. If a modelling change affects validation results, include both the previous and new OOF scores and keep the same fold/seed settings. Do not commit Kaggle source data or generated submission files.
+## Handoff rules
+
+- Do not commit the Kaggle source data, generated OOF rows or `submission.csv`.
+- Create a short-lived branch for model or documentation changes.
+- Keep seed `42` and the committed fold design for direct comparisons.
+- Run the unit tests before pushing.
+- Report both mean accuracy and fold variability when changing a model.
+- Record any Kaggle score together with the Git commit and submission filename.
+
+See `README.md` for the full methodology and `REPORT.md` for the concise academic report.

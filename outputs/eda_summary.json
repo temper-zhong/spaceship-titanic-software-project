@@ -1,0 +1,37 @@
+{
+  "train_shape": [
+    8693,
+    14
+  ],
+  "test_shape": [
+    4277,
+    13
+  ],
+  "target_true_rate": 0.5036236051995858,
+  "complete_train_rows": 6606,
+  "complete_train_rate": 0.7599217761417232,
+  "unique_travel_groups": 6217,
+  "largest_travel_group": 8,
+  "key_rates": {
+    "cryo_sleep_true": 0.8175831412578202,
+    "cryo_sleep_false": 0.3289207574921861,
+    "zero_spend": 0.7864768683274022,
+    "positive_spend": 0.2986111111111111,
+    "child_age_12_or_less": 0.6997518610421837,
+    "adult_age_over_12": 0.48313440581214323,
+    "cabin_side_s": 0.5550373134328358,
+    "cabin_side_p": 0.4512601046124584,
+    "solo_traveller": 0.45244536940686786,
+    "group_traveller": 0.5668724279835391
+  },
+  "deck_transport_rates": {
+    "B": 0.7342747111681643,
+    "C": 0.6800535475234271,
+    "G": 0.5162172723720203,
+    "A": 0.49609375,
+    "F": 0.43987115246957764,
+    "D": 0.4330543933054393,
+    "E": 0.3573059360730594,
+    "T": 0.2
+  }
+}

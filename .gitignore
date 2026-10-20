@@ -4,7 +4,10 @@ __pycache__/
 .runtime_deps/
 .pytest_cache/
 outputs-quick/
+catboost_info/
 
 # Kaggle data and generated predictions are kept local.
 raw data/*.csv
 outputs/submission.csv
+outputs/oof_predictions.csv
+outputs/fold_assignments.csv

@@ -1,0 +1,10 @@
+Check,Count,Interpretation
+duplicate_train_rows,0,expected 0
+duplicate_test_rows,0,expected 0
+duplicate_passenger_ids,0,expected 0
+invalid_passenger_id_format,0,expected 0
+invalid_cabin_format,0,expected 0
+negative_age,0,expected 0
+age_above_100,0,review if nonzero
+negative_spend_values,0,expected 0
+cryo_sleep_with_positive_spend,0,expected 0 under domain constraint
